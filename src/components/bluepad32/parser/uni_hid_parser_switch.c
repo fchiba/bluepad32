@@ -97,6 +97,7 @@ enum switch_controller_types {
     SWITCH_CONTROLLER_TYPE_JCL = 0x01,   // Joy-con left
     SWITCH_CONTROLLER_TYPE_JCR = 0x02,   // Joy-con right
     SWITCH_CONTROLLER_TYPE_PRO = 0x03,   // Pro Controller
+    SWITCH_CONTROLLER_TYPE_HORI = 0x06,  // HORI Controller
     SWITCH_CONTROLLER_TYPE_SNES = 0x0b,  // SNES Controller
 };
 
@@ -498,7 +499,8 @@ static void process_reply_read_spi_factory_stick_calibration(struct uni_hid_devi
     switch_instance_t* ins = get_switch_instance(d);
     bool is_left;
 
-    if (ins->controller_type == SWITCH_CONTROLLER_TYPE_PRO) {
+    if (ins->controller_type == SWITCH_CONTROLLER_TYPE_PRO ||
+        ins->controller_type == SWITCH_CONTROLLER_TYPE_HORI) {
         // If data is longer than expected, we treat it as Ok.
         // Clones might report longer length.
         // See: https://github.com/ricardoquesada/bluepad32/issues/94
@@ -529,14 +531,16 @@ static void process_reply_read_spi_factory_stick_calibration(struct uni_hid_devi
         }
     }
 
-    if (ins->controller_type == SWITCH_CONTROLLER_TYPE_PRO || ins->controller_type == SWITCH_CONTROLLER_TYPE_JCL)
+    if (ins->controller_type == SWITCH_CONTROLLER_TYPE_PRO || ins->controller_type == SWITCH_CONTROLLER_TYPE_JCL ||
+        ins->controller_type == SWITCH_CONTROLLER_TYPE_HORI)
         logi("Switch: Left stick calibration: x=%d,%d,%d, y=%d,%d,%d\n",  //
              ins->cal_x.min, ins->cal_x.center,
              ins->cal_x.max,  // x
              ins->cal_y.min, ins->cal_y.center,
              ins->cal_y.max  // y
         );
-    if (ins->controller_type == SWITCH_CONTROLLER_TYPE_PRO || ins->controller_type == SWITCH_CONTROLLER_TYPE_JCR)
+    if (ins->controller_type == SWITCH_CONTROLLER_TYPE_PRO || ins->controller_type == SWITCH_CONTROLLER_TYPE_JCR ||
+        ins->controller_type == SWITCH_CONTROLLER_TYPE_HORI)
         logi("Switch: Right stick calibration: x=%d,%d,%d, y=%d,%d,%d\n",  //
              ins->cal_rx.min, ins->cal_rx.center,
              ins->cal_rx.max,  // rx
@@ -552,7 +556,8 @@ static void process_reply_read_spi_user_stick_calibration(struct uni_hid_device_
     bool process_right = false;
     uint8_t data_pointer = 2;
     logi("Switch: Got magic bits 0x%02x 0x%02x\n", data[0], data[1]);
-    if (ins->controller_type == SWITCH_CONTROLLER_TYPE_PRO) {
+    if (ins->controller_type == SWITCH_CONTROLLER_TYPE_PRO ||
+        ins->controller_type == SWITCH_CONTROLLER_TYPE_HORI) {
         // If data is longer than expected, we treat it as Ok.
         // Clones might report longer length.
         // See: https://github.com/ricardoquesada/bluepad32/issues/94
@@ -595,14 +600,16 @@ static void process_reply_read_spi_user_stick_calibration(struct uni_hid_device_
         parse_stick_calibration(&ins->cal_rx, &ins->cal_ry, &data[data_pointer], false);
     }
 
-    if (ins->controller_type == SWITCH_CONTROLLER_TYPE_PRO || ins->controller_type == SWITCH_CONTROLLER_TYPE_JCL)
+    if (ins->controller_type == SWITCH_CONTROLLER_TYPE_PRO || ins->controller_type == SWITCH_CONTROLLER_TYPE_JCL ||
+        ins->controller_type == SWITCH_CONTROLLER_TYPE_HORI)
         logi("Switch: Left stick calibration: x=%d,%d,%d, y=%d,%d,%d\n",  //
              ins->cal_x.min, ins->cal_x.center,
              ins->cal_x.max,  // x
              ins->cal_y.min, ins->cal_y.center,
              ins->cal_y.max  // y
         );
-    if (ins->controller_type == SWITCH_CONTROLLER_TYPE_PRO || ins->controller_type == SWITCH_CONTROLLER_TYPE_JCR)
+    if (ins->controller_type == SWITCH_CONTROLLER_TYPE_PRO || ins->controller_type == SWITCH_CONTROLLER_TYPE_JCR ||
+        ins->controller_type == SWITCH_CONTROLLER_TYPE_HORI)
         logi("Switch: Right stick calibration: x=%d,%d,%d, y=%d,%d,%d\n",  //
              ins->cal_rx.min, ins->cal_rx.center,
              ins->cal_rx.max,  // rx
@@ -872,6 +879,7 @@ static void parse_report_30(struct uni_hid_device_s* d, const uint8_t* report, i
             parse_report_30_joycon_right(d, r);
             break;
         case SWITCH_CONTROLLER_TYPE_PRO:
+        case SWITCH_CONTROLLER_TYPE_HORI:
         case SWITCH_CONTROLLER_TYPE_SNES:
             parse_report_30_pro_controller(d, r);
             break;
@@ -916,7 +924,8 @@ static void parse_report_30_pro_controller(uni_hid_device_t* d, const struct swi
     ctl->gamepad.misc_buttons |= (r->buttons.buttons_misc & 0b00100000) ? MISC_BUTTON_CAPTURE : 0;  // Capture
 
     // Sticks, not present on SNES model.
-    if (ins->controller_type == SWITCH_CONTROLLER_TYPE_PRO) {
+    if (ins->controller_type == SWITCH_CONTROLLER_TYPE_PRO ||
+        ins->controller_type == SWITCH_CONTROLLER_TYPE_HORI) {
         // Thumbs
         ctl->gamepad.buttons |= (r->buttons.buttons_misc & 0b00000100) ? BUTTON_THUMB_R : 0;  // Thumb R
         ctl->gamepad.buttons |= (r->buttons.buttons_misc & 0b00001000) ? BUTTON_THUMB_L : 0;  // Thumb L
@@ -1087,7 +1096,8 @@ static void fsm_read_factory_stick_calibration(struct uni_hid_device_s* d) {
                                                                              : SWITCH_FACTORY_STICK_CAL_DATA_ADDR_LEFT;
     uint8_t bytes_to_read = SWITCH_FACTORY_STICK_CAL_DATA_SIZE;
     // Double, since it requests both left and right
-    if (ins->controller_type == SWITCH_CONTROLLER_TYPE_PRO)
+    if (ins->controller_type == SWITCH_CONTROLLER_TYPE_PRO ||
+        ins->controller_type == SWITCH_CONTROLLER_TYPE_HORI)
         bytes_to_read *= 2;
 
     uint8_t out[sizeof(struct switch_subcmd_request) + 5] = {0};
@@ -1115,7 +1125,8 @@ static void fsm_read_user_stick_calibration(struct uni_hid_device_s* d) {
                                                                              : SWITCH_USER_STICK_CAL_DATA_ADDR_LEFT;
     uint8_t bytes_to_read = SWITCH_USER_STICK_CAL_DATA_SIZE;
     // Double, since it requests both left and right
-    if (ins->controller_type == SWITCH_CONTROLLER_TYPE_PRO)
+    if (ins->controller_type == SWITCH_CONTROLLER_TYPE_PRO ||
+        ins->controller_type == SWITCH_CONTROLLER_TYPE_HORI)
         bytes_to_read *= 2;
 
     uint8_t out[sizeof(struct switch_subcmd_request) + 5] = {0};
