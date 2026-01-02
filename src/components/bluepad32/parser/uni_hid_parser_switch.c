@@ -499,8 +499,13 @@ static void process_reply_read_spi_factory_stick_calibration(struct uni_hid_devi
     switch_instance_t* ins = get_switch_instance(d);
     bool is_left;
 
-    if (ins->controller_type == SWITCH_CONTROLLER_TYPE_PRO ||
-        ins->controller_type == SWITCH_CONTROLLER_TYPE_HORI) {
+    if (ins->controller_type == SWITCH_CONTROLLER_TYPE_HORI) {
+        // HORI controllers have 0xFF-filled SPI data, skip parsing and keep defaults
+        logi("Switch: HORI controller, skipping SPI calibration (using defaults)\n");
+        return;
+    }
+
+    if (ins->controller_type == SWITCH_CONTROLLER_TYPE_PRO) {
         // If data is longer than expected, we treat it as Ok.
         // Clones might report longer length.
         // See: https://github.com/ricardoquesada/bluepad32/issues/94
@@ -556,8 +561,13 @@ static void process_reply_read_spi_user_stick_calibration(struct uni_hid_device_
     bool process_right = false;
     uint8_t data_pointer = 2;
     logi("Switch: Got magic bits 0x%02x 0x%02x\n", data[0], data[1]);
-    if (ins->controller_type == SWITCH_CONTROLLER_TYPE_PRO ||
-        ins->controller_type == SWITCH_CONTROLLER_TYPE_HORI) {
+
+    if (ins->controller_type == SWITCH_CONTROLLER_TYPE_HORI) {
+        // HORI controllers have 0xFF-filled SPI data, skip user calibration
+        return;
+    }
+
+    if (ins->controller_type == SWITCH_CONTROLLER_TYPE_PRO) {
         // If data is longer than expected, we treat it as Ok.
         // Clones might report longer length.
         // See: https://github.com/ricardoquesada/bluepad32/issues/94
@@ -941,7 +951,6 @@ static void parse_report_30_pro_controller(uni_hid_device_t* d, const struct swi
         ctl->gamepad.axis_rx = calibrate_axis(rx, ins->cal_rx);
         int32_t ry = (r->buttons.stick_right[1] >> 4) | (r->buttons.stick_right[2] << 4);
         ctl->gamepad.axis_ry = -calibrate_axis(ry, ins->cal_ry);
-        logd("uncalibrated values: x=%d,y=%d,rx=%d,ry=%d\n", lx, ly, rx, ry);
     }
 }
 
